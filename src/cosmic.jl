@@ -1,15 +1,14 @@
-const data_dir   = "../data"
-const result_dir = "../result"
-const model_dir  = "../model"
+const data_dir   = joinpath("..", "data")
+const result_dir = joinpath("..", "result")
+const model_dir  = joinpath("..", "model")
 
-const test = false
+#const test = false
 
 
 @doc """ build raw train, validation, evaluation dataset based on the raw_samples
 """ ->
 function build_datasets()
-
-
+    println("todo...")
 end
 #@doc """ build raw samples to disk: ../data/raw_samples from raw cosmic file
 #""" ->

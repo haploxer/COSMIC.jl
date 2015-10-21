@@ -1,10 +1,10 @@
 module COSMIC
 
-using Logging
-@Logging.configure(level=DEBUG)
-using DataFrames
-using Compat
-using Docile
+#using Logging
+#@Logging.configure(level=DEBUG)
+#using DataFrames
+#using Compat
+#using Docile
 
 
 export 
