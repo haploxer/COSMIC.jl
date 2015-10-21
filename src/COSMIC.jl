@@ -19,7 +19,7 @@ include("utils.jl")
 
 
 function __init__()
-    build_dir()
+#    build_dir()
 end
 
 end # module

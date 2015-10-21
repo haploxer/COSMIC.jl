@@ -3,7 +3,6 @@ const result_dir = "../result"
 const model_dir  = "../model"
 
 const test = false
-using Logging
 
 
 @doc """ build raw train, validation, evaluation dataset based on the raw_samples
