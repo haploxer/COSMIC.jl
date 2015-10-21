@@ -19,7 +19,7 @@ function build_raw_samples(cosmic_path::ASCIIString)
     if !isdir(raw_samples)
         mkdir(raw_samples)
     else
-        @info("removing files under $raw_samples")
+        println("removing files under $raw_samples")
         rm(raw_samples,recursive=true)
         mkdir(raw_samples)
     end
