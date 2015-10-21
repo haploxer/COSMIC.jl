@@ -8,8 +8,7 @@ using Docile
 
 
 export 
-    test,
-    build_raw_data
+    build_raw_samples
 
 
 
