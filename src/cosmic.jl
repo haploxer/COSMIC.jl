@@ -39,7 +39,7 @@ end
 function build_dir()
     for dir in (data_dir,result_dir,model_dir)
         if !isdir(dir)
-            @info("buiding directory $data_dir")
+            println("buiding directory $data_dir")
             mkdir(dir)
         end
     end
