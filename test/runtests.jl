@@ -1,4 +1,4 @@
-using COSMIC
+import COSMIC
 using Base.Test
 
 
