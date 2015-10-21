@@ -1,3 +1,5 @@
+
+#=
 if "../src" ∉  LOAD_PATH
     push!(LOAD_PATH,"../src")
 end
@@ -17,4 +19,4 @@ const gene_census = "/home/guo/haplox/HapBrain/data/cosmic/cancer_gene_census.cs
 
 
 COSMIC.build_raw_samples(COSMIC.@test cosmic)
-
+=#
