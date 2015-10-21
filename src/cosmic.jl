@@ -13,7 +13,7 @@ function build_datasets()
 
 
 end
-@doc """ build raw samples to disk: [../data/raw_samples] from raw cosmic file
+@doc """ build raw samples to disk: ../data/raw_samples from raw cosmic file
 """ ->
 function build_raw_samples(cosmic_path::ASCIIString)
     raw_samples = joinpath(data_dir,"raw_samples")
