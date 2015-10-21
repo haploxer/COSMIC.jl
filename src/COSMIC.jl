@@ -1,5 +1,9 @@
 module COSMIC
 
-# package code goes here
+
+
+
+
+include("cosmic.jl")
 
 end # module
