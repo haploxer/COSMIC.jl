@@ -5,3 +5,6 @@ macro test(file)
         return esc(file)
     end
 end
+#macro pline(str)
+#    esc(println(str," we are at line: ",@__LINE__))
+#end

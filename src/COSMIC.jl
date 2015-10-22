@@ -1,24 +1,24 @@
 module COSMIC
 
-#using Logging
-#@Logging.configure(level=DEBUG)
-#using DataFrames
-#using Compat
+using Logging
+@Logging.configure(level=DEBUG)
+using DataFrames
+using Compat
 #using Docile
-
+using HDF5
 
 export 
     build_raw_samples
 
 
 
-include("cosmic.jl")
 include("utils.jl")
+include("cosmic.jl")
 
 
 
 function __init__()
-#    build_dir()
+#     @pline "1"
 end
 
 end # module

@@ -2,16 +2,42 @@ const data_dir   = joinpath("..", "data")
 const result_dir = joinpath("..", "result")
 const model_dir  = joinpath("..", "model")
 
-#const test = false
+const test = false
 
 
 @doc """ build raw train, validation, evaluation dataset based on the raw_samples
 """ ->
-function build_datasets()
-    println("todo...")
+function split_samples(;ratios=(0.6,0.2,0.2))
+    raw_samples = joinpath(data_dir, "raw_samples")
+    sample_fls = try
+        readdir(raw_samples)
+    catch 
+        @warn("$raw_samples is not exits, program terminated") #TODO
+        exit(-1)
+    end
+    num_samples = length(sample_fls) - 1 
+    @assert length(readdir(raw_samples)) > 0
+    
+    tr_val_point  = round(Int64, num_samples * ratios[1])
+    val_te_point  = round(Int64, num_samples * (ratios[1] + ratios[2]))
+    
+    train_samples = sample_fls[1:tr_val_point]
+    val_samples   = sample_fls[tr_val_point+1:val_te_point]
+    te_samples    = sample_fls[val_te_point+1:end]
+
+    sample_meta   = joinpath(data_dir, "sample_meta")
+    if !isdir(sample_meta)
+        mkdir(sample_meta)
+    end
+    train_fl,val_fl,test_fl = "train.csv","val.csv","test.csv"
+    for (fl,samples) in [(train_fl,train_samples), (val_fl,val_samples),(test_fl, te_samples)]
+        fl = joinpath(sample_meta, fl)
+        writecsv(fl, samples)
+    end
 end
-#@doc """ build raw samples to disk: ../data/raw_samples from raw cosmic file
-#""" ->
+
+@doc """ build raw samples to disk: ../data/raw_samples from raw cosmic file
+""" ->
 function build_raw_samples(cosmic_path::ASCIIString)
     raw_samples = joinpath(data_dir,"raw_samples")
     if !isdir(raw_samples)
