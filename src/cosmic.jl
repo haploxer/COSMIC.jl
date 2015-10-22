@@ -4,6 +4,7 @@ const model_dir   = joinpath("..", "model")
 const raw_samples = joinpath(data_dir, "raw_samples")
 const sample_meta = joinpath(data_dir, "sample_meta")
 #const Metas      = joinpath(data_dir, "fields")
+const miss        = "MISSING"
 
 const test = false
 
@@ -27,9 +28,16 @@ end
 immutable Atom
     idx_row::Int64
     idx_col::Int64
-    val::ASCIIString
+    field_val::ASCIIString
 end
-
+function Atom(idx_row,idx_col,field_val::ASCIIString)
+    @assert idx_row > 0
+    @assert idx_col > 0
+    if length(field_val) == 0 
+        field_val = miss
+    end
+    Atom(idx_row, idx_col, field_val)
+end
 @doc """ the simplist way of build machine learning dataset only using one feature: Mutation_ID
          ID_sample: [(Gene_name,feat),(),...]
          hash(Gene_name) --> col_idx 
@@ -44,25 +52,37 @@ function build_ml_data(single_field::ASCIIString, idx_single_field::Int64)
     ### genes:   all the genes then filter
     ### samples: all the samples then filter
     ### field: single_field
-    function merge_atom(atom_1, atom_2)
-        vcat(atom_1, atom_2) #TODO this is wrong! sparse maybe not support non-numeric values.
-    end
     sample_meta   = joinpath(data_dir, "sample_meta")
     !isdir(sample_meta) && @error("can't find sample_meta")
-    for dataset in readdir(sample_meta)
-        sample_fls = readcsv(joinpath(sample_meta,dataset))
-        num_sample = length(sample_fls)
-        hash_sample = Dict{ASCIIString, Int64}(Dict([idx=>sample_fl 
-                        for idx in 1:num_sample, for sample_fl in sample_fls]))
 
+
+    field_vals = readcsv(joinpath(sample_meta, single_field, ".csv"))
+    for dataset in readdir(sample_meta)
+
+        sample_fls = readcsv(joinpath(sample_meta,dataset))
+        hash_sample = Dict()
+        for idx = 1:length(sample_fls)
+            hash_sample[sample_fls[idx]] = idx
+        end
+
+        hash_field = Dict()
+        for idx = 1:length(field_vals)
+            hash_field[field_vals[idx]] = idx
+        end
+
+        function merge_atom(atom_1, atom_2)
+            vcat(atom_1, atom_2) #TODO this is wrong! sparse maybe not support non-numeric values.
+        end
         @parallel merge_atom for sample_fl in sample_fls
             f = open(joinpath(raw_samples,sample_fl))
             atom_sample = Tuple(ASCIIString,ASCIIString)[]
-            for line in eachline(f)
+            first = true
+            for line in eachline(f) # short file
                 row = split(line, '\t')
-                # Gene_name #1, Mutation_ID #17 Primary_site #8 Primary_histology #1
-                
-
+                # row[]
+                first && row_idx = hash_sample(row[])
+                # Mutation_ID:#17 row_idx col_idx
+                Atom(row_idx, col_idx, row[17])
             end
             close(f)
         end
