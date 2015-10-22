@@ -4,6 +4,22 @@ const model_dir  = joinpath("..", "model")
 
 const test = false
 
+@doc """ build machine learning datasets :: this seems parallel 
+         ID_sample: [(Gene_name,feat),(),...]
+         hash(Gene_name) --> col_idx 
+""" ->
+function build_ml_data()
+    ml_dir = joinpath(data_dir, "ml")
+    !isdir(ml_dir) && mkdir(ml_dir)
+    
+    ### genes:   all the genes then filter
+    ### samples: all the samples then filter
+    ### class: Primary_histology, Primary_site, sample_Source
+    
+    
+
+
+end
 
 @doc """ random build raw train, validation, evaluation dataset based on the raw_samples
 """ ->
