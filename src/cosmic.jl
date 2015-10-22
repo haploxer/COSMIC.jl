@@ -5,7 +5,7 @@ const model_dir  = joinpath("..", "model")
 const test = false
 
 
-@doc """ build raw train, validation, evaluation dataset based on the raw_samples
+@doc """ random build raw train, validation, evaluation dataset based on the raw_samples
 """ ->
 function split_samples(;ratios=(0.6,0.2,0.2))
     raw_samples = joinpath(data_dir, "raw_samples")
@@ -21,6 +21,7 @@ function split_samples(;ratios=(0.6,0.2,0.2))
     tr_val_point  = round(Int64, num_samples * ratios[1])
     val_te_point  = round(Int64, num_samples * (ratios[1] + ratios[2]))
     
+    shuffle!(sample_fls)
     train_samples = sample_fls[1:tr_val_point]
     val_samples   = sample_fls[tr_val_point+1:val_te_point]
     te_samples    = sample_fls[val_te_point+1:end]
