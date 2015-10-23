@@ -8,36 +8,6 @@ const raw_field_datasets = joinpath(data_dir,"raw_field_datasets")
 const miss = "MISSING"
 const test = false
 
-immutable OrderedSampleMatrix
-    samples::Array{Sample} # sorted idx_IDsample
-end
-function OrderedSampleMatrix(samples::Array{Sample}) # for null ordered sample matrix
-    idxs = row(samples)
-    perm = sortperm(idxs)
-    OrderedSampleMatrix(samples[perm])
-end
-immutable Sample
-    idx_row::Int64
-    idx_col::Array{Int64,1}
-    field_val::Array{ASCIIString,1}
-end
-function Sample(idx_row,idx_col,field_val)
-    @assert idx_row > 0
-    @assert idx_col > 0
-    length(field_val) == 0 && field_val = miss
-
-    Sample(idx_row, idx_col, field_val)
-end
-function Sample(atom_1, atom_2)
-    @assert row(atom_1) == row(atom_2)
-    Sample(idx_row,col(atom_1,atom_2),field_val(atom_1,atom_2))
-end
-function row(sample::Sample)
-    sample.idx_row
-end
-function row(samples::Array{Sample})
-    map(row, samples)
-end
 immutable Atom
     idx_row::Int64
     idx_col::Int64
@@ -61,13 +31,48 @@ function Atom(idx_row,idx_col,field_val::ASCIIString)
     Atom(idx_row, idx_col, field_val)
 end
 
+immutable Sample
+    idx_row::Int64
+    idx_col::Array{Int64,1}
+    field_val::Array{ASCIIString,1}
+end
+function Sample(idx_row,idx_col,field_val)
+    @assert idx_row > 0
+    @assert idx_col > 0
+    if length(field_val) == 0  
+        field_val = miss
+    end
+
+    Sample(idx_row, idx_col, field_val)
+end
+function Sample(atom_1::Atom, atom_2::Atom)
+    @assert row(atom_1) == row(atom_2)
+    Sample(idx_row,col(atom_1,atom_2),field_val(atom_1,atom_2))
+end
+function row(sample::Sample)
+    sample.idx_row
+end
+function row(samples::Array{Sample})
+    map(row, samples)
+end
+immutable OrderedSampleMatrix
+    samples::Array{Sample} # sorted idx_IDsample
+end
+function OrderedSampleMatrix(samples::Array{Sample}) # for null ordered sample matrix
+    idxs = row(samples)
+    perm = sortperm(idxs)
+    OrderedSampleMatrix(samples[perm])
+end
+
 @doc """  build selected fields into OrderedSampleMatrices at field_dir
 """ ->
 function build_field_datasets()
-    const field_names = ("Mutation_ID","FATHMM_score")
+    const field_names = [("Mutation_ID",17),("FATHMM_score",34)]
     map(build_field_dataset, field_names)
 end
-
+function build_field_dataset(field_meta::Tuple{ASCIIString,Int64})
+    build_field_dataset(field_meta[1],field_meta[2])
+end
 @doc """ the simplist way of build machine learning dataset only using one feature: Mutation_ID
          ID_sample: [(Gene_name,feat),(),...]
          hash(Gene_name) --> col_idx 
@@ -85,7 +90,7 @@ function build_field_dataset(field_name::ASCIIString, idx_field::Int64)
     sample_meta   = joinpath(data_dir, "sample_meta")
     !isdir(sample_meta) && @error("can't find sample_meta")
 
-    field_vals = readcsv(joinpath(sample_meta, field, ".csv"))
+    field_vals = readcsv(joinpath(sample_meta, field_name, ".csv"))
     for dataset in readdir(sample_meta)
 
         sample_fls = readcsv(joinpath(sample_meta,dataset))
@@ -126,6 +131,7 @@ function build_field_dataset(field_name::ASCIIString, idx_field::Int64)
 
 end
 
+#= it seems that his function is deprecated
 @doc """ build machine learning datasets :: this seems parallel 
          ID_sample: [(Gene_name,feat),(),...]
          hash(Gene_name) --> col_idx 
@@ -153,13 +159,29 @@ function build_ml_data(;sample_fields=("Gene_name","Gene_CDS_length","Primary_si
     end
 
 end
+=#
 
-@doc """ build fields of sample and save the result into sample_meta/fields/[Gene_name].csv
-         build them into Gene_meta, cancer_class, mutation_meta, other_meta, statics_meta
+
+@doc """ Since cosmic raw data file is large, we tend to build all the fields with only one exaust search
 """ ->
-function build_fields_meta(cosmic_path::ASCIIString, name_meta::ASCIIString, idx_meta::Array{Int64})
+function build_fields_meta(cosmic_path::ASCIIString)
     f = open(cosmic_path)
     header = readline(f)
+    header = split(header, '\t')
+    data   = readdlm(f, ASCIIString)
+    map!(x -> length(x) == 0 ? miss : x, data)
+    
+    if isdir(sample_meta) 
+        
+    else
+        mkdir(sample_meta)
+    end
+    for (idx,field) in enumerate(header) #@simd
+        writecsv(joinpath(sample_meta, string(strip(header[idx]),".csv")), sort(unique(data[:,idx])))
+    end
+
+    #=
+    fields = header[]
     fl_meta = joinpath(sample_meta, name_meta, ".csv")
 #   meta_io = open(meta_fl, "w")
     ret = Array{ASCIIString}[]
@@ -170,6 +192,7 @@ function build_fields_meta(cosmic_path::ASCIIString, name_meta::ASCIIString, idx
     end
     ret = reduce(vcat, unique(ret))
     writecsv(fl_meta, ret)
+    =#
 end
 
 #function build_field()
