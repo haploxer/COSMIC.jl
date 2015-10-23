@@ -3,32 +3,54 @@ const result_dir  = joinpath("..", "result")
 const model_dir   = joinpath("..", "model")
 const raw_samples = joinpath(data_dir, "raw_samples")
 const sample_meta = joinpath(data_dir, "sample_meta")
-#const Metas      = joinpath(data_dir, "fields")
-const miss        = "MISSING"
+const raw_field_datasets = joinpath(data_dir,"raw_field_datasets")
 
+const miss = "MISSING"
 const test = false
 
-#= Sample is too complicated. It's better to split an organization into independent cells
-type Sample
-    Gene_name::ASCIIString
-    Gene_CDS_length::ASCIIString
-    Primary_site::ASCIIString
-    Primary_histology::ASCIIString
-    Histology_subtype_1::ASCIIString
-    Mutation_ID::ASCIIString
-    Mutation_Description::ASCIIString
-    Mutation_zygosity::ASCIIString
-    LOH::ASCIIString
-    SNP::ASCIIString
-    Sample_source::ASCIIString
-    Tumor_origin::ASCIIString
-    Age::ASCIIString
+immutable OrderedSampleMatrix
+    samples::Array{Sample} # sorted idx_IDsample
 end
-=#
+function OrderedSampleMatrix(samples::Array{Sample}) # for null ordered sample matrix
+    idxs = row(samples)
+    perm = sortperm(idxs)
+    OrderedSampleMatrix(samples[perm])
+end
+immutable Sample
+    idx_row::Int64
+    idx_col::Array{Int64,1}
+    field_val::Array{ASCIIString,1}
+end
+function Sample(idx_row,idx_col,field_val)
+    @assert idx_row > 0
+    @assert idx_col > 0
+    length(field_val) == 0 && field_val = miss
+
+    Sample(idx_row, idx_col, field_val)
+end
+function Sample(atom_1, atom_2)
+    @assert row(atom_1) == row(atom_2)
+    Sample(idx_row,col(atom_1,atom_2),field_val(atom_1,atom_2))
+end
+function row(sample::Sample)
+    sample.idx_row
+end
+function row(samples::Array{Sample})
+    map(row, samples)
+end
 immutable Atom
     idx_row::Int64
     idx_col::Int64
     field_val::ASCIIString
+end
+function row(atom::Atom)
+    atom.idx_row
+end
+function col(atom_1::Atom,atom_2::Atom)
+    Int64[atom_1.idx_col, atom_2.idx_col]
+end
+function field_val(atom_1::Atom, atom_2::Atom)
+    ASCIIString[atom_1.field_val, atom_2.field_val]
 end
 function Atom(idx_row,idx_col,field_val::ASCIIString)
     @assert idx_row > 0
@@ -43,9 +65,9 @@ end
          hash(Gene_name) --> col_idx 
          hash(Sample_ID) --> row_idx
 """ ->
-function build_ml_data(single_field::ASCIIString, idx_single_field::Int64)
-    ml_dir = joinpath(data_dir, "ml")
-    !isdir(ml_dir) && mkdir(ml_dir)
+function build_field_dataset(field_name::ASCIIString, idx_field::Int64)
+    field_dir = joinpath(data_dir, "field")
+    !isdir(field_dir) && mkdir(field_dir)
     
     # create hashes for sample_ID and single_field
     
@@ -55,8 +77,7 @@ function build_ml_data(single_field::ASCIIString, idx_single_field::Int64)
     sample_meta   = joinpath(data_dir, "sample_meta")
     !isdir(sample_meta) && @error("can't find sample_meta")
 
-
-    field_vals = readcsv(joinpath(sample_meta, single_field, ".csv"))
+    field_vals = readcsv(joinpath(sample_meta, field, ".csv"))
     for dataset in readdir(sample_meta)
 
         sample_fls = readcsv(joinpath(sample_meta,dataset))
@@ -70,24 +91,30 @@ function build_ml_data(single_field::ASCIIString, idx_single_field::Int64)
             hash_field[field_vals[idx]] = idx
         end
 
-        function merge_atom(atom_1, atom_2)
-            vcat(atom_1, atom_2) #TODO this is wrong! sparse maybe not support non-numeric values.
+        function merge_atom(atom_1,atom_2)
+            Sample(atom_1, atom_2) 
         end
-        @parallel merge_atom for sample_fl in sample_fls
-            f = open(joinpath(raw_samples,sample_fl))
-            atom_sample = Tuple(ASCIIString,ASCIIString)[]
-            first = true
-            for line in eachline(f) # short file
-                row = split(line, '\t')
-                # row[]
-                first && row_idx = hash_sample(row[])
-                # Mutation_ID:#17 row_idx col_idx
-                Atom(row_idx, col_idx, row[17])
-            end
-            close(f)
-        end
-    end
 
+        samples = @parallel for sample_fl in sample_fls
+            f = open(joinpath(raw_samples, sample_fl))
+
+            function atom_mapper(line)
+                row = split(line, '\t')
+                # row[6] is ID_sample
+                row_idx = hash_sample(row[6])
+                col_idx = hash_field(row[idx_field])
+                # Mutation_ID:#17 row_idx col_idx
+                Atom(row_idx, col_idx, row[idx_field])
+            end
+            sample = reduce(merge_atom, pmap(atom_mapper, readlines(f))) # short filea
+
+            close(f)
+            sample
+        end
+        sample_matrix = OrderedSampleMatrix(samples)
+        dataset_name = joinpath(field_dir, filename(dataset), field_name)
+        writedlm(dataset_name, sample_matrix)
+    end
 
 end
 
@@ -205,4 +232,6 @@ function build_dir()
     end
 end
 
-
+function filename(file::ASCIIString)
+    split(file,".")[1]
+end
