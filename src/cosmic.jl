@@ -60,6 +60,14 @@ function Atom(idx_row,idx_col,field_val::ASCIIString)
     end
     Atom(idx_row, idx_col, field_val)
 end
+
+@doc """  build selected fields into OrderedSampleMatrices at field_dir
+""" ->
+function build_field_datasets()
+    const field_names = ("Mutation_ID","FATHMM_score")
+    map(build_field_dataset, field_names)
+end
+
 @doc """ the simplist way of build machine learning dataset only using one feature: Mutation_ID
          ID_sample: [(Gene_name,feat),(),...]
          hash(Gene_name) --> col_idx 
