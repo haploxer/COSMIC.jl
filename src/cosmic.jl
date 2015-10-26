@@ -66,7 +66,7 @@ end
 
 @doc """  build selected fields into OrderedSampleMatrices at field_dir
 """ ->
-function build_field_datasets()
+@acc function build_field_datasets()
     const field_names = [("Mutation_ID",17),("FATHMM_score",34)]
     map(build_field_dataset, field_names)
 end
@@ -78,7 +78,7 @@ end
          hash(Gene_name) --> col_idx 
          hash(Sample_ID) --> row_idx
 """ ->
-function build_field_dataset(field_name::ASCIIString, idx_field::Int64)
+@acc function build_field_dataset(field_name::ASCIIString, idx_field::Int64)
     field_dir = joinpath(data_dir, "field")
     !isdir(field_dir) && mkdir(field_dir)
     

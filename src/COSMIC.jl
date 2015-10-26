@@ -6,6 +6,8 @@ using DataFrames
 using Compat
 #using Docile
 using HDF5
+using ParallelAccelerator
+
 
 export 
     build_raw_samples
