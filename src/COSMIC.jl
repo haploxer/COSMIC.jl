@@ -5,11 +5,13 @@ using Logging
 using DataFrames
 using Compat
 #using Docile
+using JLD
 using HDF5
 using ParallelAccelerator
-
+import Base.start, Base.next, Base.done
 
 export 
+    start,next,done,
     build_raw_samples
 
 

@@ -16,6 +16,15 @@ end
 function row(atom::Atom)
     atom.idx_row
 end
+function col(atom::Atom)
+    atom.idx_col
+end
+function field_val(atom::Atom)
+    atom.field_val
+end
+function convert(Sample, atom::Atom)
+    Sample(atom.idx_row, Int64[atom.idx_col], ASCIIString[field_val(atom)])
+end
 function col(atom_1::Atom,atom_2::Atom)
     Int64[atom_1.idx_col, atom_2.idx_col]
 end
@@ -36,49 +45,98 @@ immutable Sample
     idx_col::Array{Int64,1}
     field_val::Array{ASCIIString,1}
 end
+function field_val(sample::Sample)
+    sample.field_val
+end
+function row(sample::Sample)
+    sample.idx_row
+end
+function col(sample::Sample)
+    sample.idx_col
+end
 function Sample(idx_row,idx_col,field_val)
     @assert idx_row > 0
     @assert idx_col > 0
     if length(field_val) == 0  
         field_val = miss
     end
-
     Sample(idx_row, idx_col, field_val)
 end
 function Sample(atom_1::Atom, atom_2::Atom)
     @assert row(atom_1) == row(atom_2)
-    Sample(idx_row,col(atom_1,atom_2),field_val(atom_1,atom_2))
+    Sample(row(atom_1), col(atom_1,atom_2),field_val(atom_1,atom_2))
 end
-function row(sample::Sample)
-    sample.idx_row
+function Sample(sample::Sample, atom::Atom)
+    @assert row(sample) == row(atom)
+    idx_cols = vcat(col(sample),col(atom))
+    field_vals = vcat(field_val(sample),field_val(atom))
+    Sample(row(sample),idx_cols,field_vals)
+end
+function Sample(sample_1::Sample, sample_2::Sample)
+    @assert row(sample_1) == row(sample_2)
+    idx_cols = vcat(col(sample_1),col(sample_2))
+    field_vals = vcat(field_val(sample_1),field_val(sample_2))
+    Sample(row(sample_1),idx_cols,field_vals)
+end
+
+function show(sample::Sample)
+    println(sample.idx_row,sample.idx_col)
+    println(sample.field_val)
+end
+function tet()
 end
 function row(samples::Array{Sample})
     map(row, samples)
 end
-immutable OrderedSampleMatrix
+type OrderedSampleMatrix
+    num_samples
     samples::Array{Sample} # sorted idx_IDsample
 end
 function OrderedSampleMatrix(samples::Array{Sample}) # for null ordered sample matrix
     idxs = row(samples)
+    num_samples = length(samples)
     perm = sortperm(idxs)
-    OrderedSampleMatrix(samples[perm])
+    OrderedSampleMatrix(num_samples, samples[perm])
+end
+function start(orspmat::OrderedSampleMatrix)
+    1
+end
+function start(sp::Sample)
+    1
+end
+function next(sp::Sample, state)
+    sp.samples[state], state+1
+end
+function done(orspmat::OrderedSampleMatrix, state)
+    state > orspmat.num_samples
+end
+function convert(::Type{Array{Sample,1}}, samples::Array{Any,1})
+    ret = Sample[]
+    for sample in samples
+        push!(ret, sample)
+    end
+    ret
 end
 
-@doc """  build selected fields into OrderedSampleMatrices at field_dir
-""" ->
-@acc function build_field_datasets()
-    const field_names = [("Mutation_ID",17),("FATHMM_score",34)]
+#@doc """  build selected fields into OrderedSampleMatrices at field_dir
+#""" ->
+function build_field_datasets()
+    header = readdlm(joinpath(sample_meta, "header.tsv"), '\t', ASCIIString)
+    header = header[:,1]
+    @show header
+    deleteat!(header, 1)
+    field_names = [(name,idx) for (idx,name) in enumerate(header)]
     map(build_field_dataset, field_names)
 end
 function build_field_dataset(field_meta::Tuple{ASCIIString,Int64})
     build_field_dataset(field_meta[1],field_meta[2])
 end
-@doc """ the simplist way of build machine learning dataset only using one feature: Mutation_ID
-         ID_sample: [(Gene_name,feat),(),...]
-         hash(Gene_name) --> col_idx 
-         hash(Sample_ID) --> row_idx
-""" ->
-@acc function build_field_dataset(field_name::ASCIIString, idx_field::Int64)
+#@doc """ the simplist way of build machine learning dataset only using one feature: Mutation_ID
+#         ID_sample: [(Gene_name,feat),(),...]
+#         hash(Gene_name) --> col_idx 
+#         hash(Sample_ID) --> row_idx
+#""" ->
+function build_field_dataset(field_name::ASCIIString, idx_field::Int64)
     field_dir = joinpath(data_dir, "field")
     !isdir(field_dir) && mkdir(field_dir)
     
@@ -90,77 +148,82 @@ end
     sample_meta   = joinpath(data_dir, "sample_meta")
     !isdir(sample_meta) && @error("can't find sample_meta")
 
-    field_vals = readcsv(joinpath(sample_meta, field_name, ".csv"))
-    for dataset in readdir(sample_meta)
-
+    field_vals = readcsv(joinpath(sample_meta, string(field_name, ".csv")))
+    gene_names = readcsv(joinpath(sample_meta, "Gene name.csv"), ASCIIString)
+    datasets = ["train.csv","val.csv","test.csv"]
+    num = 0
+    for dataset in datasets
+        println("dataset is ", dataset)
         sample_fls = readcsv(joinpath(sample_meta,dataset))
+        ID_samples = map(x->x[1:end-4],sample_fls)
         hash_sample = Dict()
         for idx = 1:length(sample_fls)
-            hash_sample[sample_fls[idx]] = idx
+            hash_sample[ID_samples[idx]] = idx
         end
 
-        hash_field = Dict()
-        for idx = 1:length(field_vals)
-            hash_field[field_vals[idx]] = idx
-        end
+        #the name of columns is Gene_name
 
-        function merge_atom(atom_1,atom_2)
+        hash_gene = Dict() 
+        for idx = 1:length(gene_names)
+            hash_gene[gene_names[idx]] = idx
+        end
+        @show hash_gene["39340"]
+        function merge_atom(atom_1::Atom,atom_2::Atom)
+            Sample(atom_1, atom_2) 
+        end
+        function merge_atom(atom_1::Sample,atom_2::Atom)
+            Sample(atom_1, atom_2) 
+        end
+        function merge_atom(atom_1::Sample,atom_2::Sample)
             Sample(atom_1, atom_2) 
         end
 
-        samples = @parallel for sample_fl in sample_fls
+        samples = @parallel vcat for sample_fl in sample_fls
             f = open(joinpath(raw_samples, sample_fl))
-
+            lines = readlines(f)
             function atom_mapper(line)
+                line = strip(line,'\n')
                 row = split(line, '\t')
+                @assert length(row) == 34
                 # row[6] is ID_sample
-                row_idx = hash_sample(row[6])
-                col_idx = hash_field(row[idx_field])
+                row_idx = try 
+                            hash_sample[row[6]]
+                          catch e
+                            println("==========Error Info===========")
+                            println(e)
+                            println(row)
+                          end
+                        
+                col_idx = try 
+                            hash_gene[strip(row[1])]
+                          catch e
+                            println("==========Error Info===========")
+                            println(e)
+                            println(row)
+                          end
+                           
                 # Mutation_ID:#17 row_idx col_idx
-                Atom(row_idx, col_idx, row[idx_field])
+                atom = Atom(row_idx, col_idx, row[idx_field])
             end
-            sample = reduce(merge_atom, pmap(atom_mapper, readlines(f))) # short filea
-
+            sample = reduce(merge_atom, pmap(atom_mapper, lines)) # short filea
+            if typeof(sample) <: Atom
+                sample = convert(Sample, sample)
+            end
             close(f)
             sample
         end
+        @debug("here ========")
         sample_matrix = OrderedSampleMatrix(samples)
-        dataset_name = joinpath(field_dir, filename(dataset), field_name)
-        writedlm(dataset_name, sample_matrix)
-    end
-
-end
-
-#= it seems that his function is deprecated
-@doc """ build machine learning datasets :: this seems parallel 
-         ID_sample: [(Gene_name,feat),(),...]
-         hash(Gene_name) --> col_idx 
-""" ->
-function build_ml_data(;sample_fields=("Gene_name","Gene_CDS_length","Primary_site",
-                        "Primary_histology","Histology_subtype_1","Mutation_ID","Mutation_Description"
-                        ,"Mutation_zygosity","LOH","SNP","Sample_source","Tumour_origin","Age"))
-    ml_dir = joinpath(data_dir, "ml")
-    !isdir(ml_dir) && mkdir(ml_dir)
-    
-    ### genes:   all the genes then filter
-    ### samples: all the samples then filter
-    ### class: Primary_histology, Primary_site, sample_Source
-    sample_meta   = joinpath(data_dir, "sample_meta")
-    !isdir(sample_meta) && @error("can't find sample_meta")
-    for dataset in readdir(sample_meta)
-        for sample_fl in readcsv(joinpath(sample_meta,dataset)) # @parallel
-            f = open(joinpath(raw_samples,sample_fl))
-            for line in eachline(f)
-                row = split(line, '\t')
-                @warn("Implement of this function not finished yet")
-            end
-            close(f)
+        dataset_dir = joinpath(field_dir, filename(dataset))
+        isdir(dataset_dir) || mkdir(dataset_dir)
+        dataset_name = joinpath(dataset_dir, string(field_name,".tsv"))
+        @debug("bugs above ====")
+        jldopen(dataset_name, "w") do file
+            println("save $dataset into file $dataset_name")
+            write(file, "sample_matrix", sample_matrix)
         end
     end
-
 end
-=#
-
 
 @doc """ Since cosmic raw data file is large, we tend to build all the fields with only one exaust search
 """ ->
@@ -180,23 +243,8 @@ function build_fields_meta(cosmic_path::ASCIIString)
         writecsv(joinpath(sample_meta, string(strip(header[idx]),".csv")), sort(unique(data[:,idx])))
     end
 
-    #=
-    fields = header[]
-    fl_meta = joinpath(sample_meta, name_meta, ".csv")
-#   meta_io = open(meta_fl, "w")
-    ret = Array{ASCIIString}[]
-    for line in eachline(f) # can't parallel since data is too large
-        row = split(line, '\t')
-        # Gene_name:#1, Gene_CDS_length:#3
-        push!(ret, ASCIIString[row[i] for i in idx_meta]')
-    end
-    ret = reduce(vcat, unique(ret))
-    writecsv(fl_meta, ret)
-    =#
 end
 
-#function build_field()
-#end
 
 @doc """ random build raw train, validation, evaluation dataset based on the raw_samples
 """ ->
@@ -243,12 +291,12 @@ function build_raw_samples(cosmic_path::ASCIIString)
     end
     f = open(cosmic_path)
     header = readline(f)
-    writedlm(joinpath(raw_samples, "header.tsv"), header)
+    write(joinpath(sample_meta, "header.tsv"), split(strip(header, '\t')))
     for line in eachline(f)
         row = split(line,'\t')
         sample_name = strip(row[6]) # #row[6] is ID_sample
         f_sp = open(joinpath(raw_samples,string(sample_name,".tsv")), "a+")
-        write(f_sp, row)
+        write(f_sp, line)
         close(f_sp)
     end
     close(f)
